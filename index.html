@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClarityLab AI | Cinematic Entry</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #030610;
+            --neon-cyan: #00f0ff;
+            --neon-emerald: #00ff88;
+        }
+        body, html {
+            margin: 0; padding: 0;
+            background-color: var(--bg-deep);
+            color: #fff;
+            font-family: 'Outfit', sans-serif;
+            overflow-x: hidden;
+        }
+        /* Custom Glowing Scrollbar */
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: var(--bg-deep); }
+        ::-webkit-scrollbar-thumb { background: rgba(0, 240, 255, 0.4); border-radius: 10px; }
+        
+        /* The 3D Canvas fixed to the background */
+        #canvas-container {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 1; pointer-events: none;
+        }
+        /* A subtle ambient glow behind the 3D model */
+        .ambient-glow {
+            position: fixed;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 60vw; height: 60vw;
+            background: radial-gradient(circle, rgba(0, 240, 255, 0.1) 0%, transparent 60%);
+            z-index: 0; filter: blur(50px); pointer-events: none;
+        }
+
+        /* Scrollable Content */
+        .scroll-content {
+            position: relative; z-index: 2;
+        }
+        .section {
+            height: 100vh;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: flex-start;
+            padding: 0 10%; box-sizing: border-box;
+        }
+        .section.center { align-items: center; text-align: center; }
+        .section.right { align-items: flex-end; text-align: right; }
+
+        /* Typography */
+        h1 { font-size: 5rem; font-weight: 800; margin: 0; letter-spacing: -0.04em; text-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        h2 { font-size: 3.5rem; font-weight: 800; margin: 0; }
+        p { font-size: 1.5rem; color: #94a3b8; max-width: 500px; line-height: 1.6; }
+        
+        .eyebrow {
+            font-family: 'JetBrains Mono', monospace; color: var(--neon-cyan);
+            letter-spacing: 0.3em; text-transform: uppercase; font-size: 1rem;
+            margin-bottom: 20px;
+        }
+        .highlight { color: var(--neon-cyan); text-shadow: 0 0 20px rgba(0, 240, 255, 0.4); }
+
+        /* Glowing Launch Button */
+        .launch-btn {
+            display: inline-block; margin-top: 40px;
+            padding: 20px 40px; border-radius: 16px;
+            background: linear-gradient(135deg, var(--neon-cyan), #0055ff);
+            color: #fff; font-size: 1.4rem; font-weight: 800; text-decoration: none;
+            box-shadow: 0 10px 30px rgba(0, 240, 255, 0.4), inset 0 2px 5px rgba(255,255,255,0.4);
+            transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 0.1em;
+            pointer-events: auto; /* Required so it can be clicked */
+        }
+        .launch-btn:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 20px 50px rgba(0, 240, 255, 0.6), inset 0 2px 5px rgba(255,255,255,0.6);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow"></div>
+    <div id="canvas-container"></div>
+
+    <div class="scroll-content">
+        <!-- Section 1 -->
+        <div class="section gs_reveal">
+            <span class="eyebrow">ClarityLab AI</span>
+            <h1>The Future of<br><span class="highlight">Diagnostics.</span></h1>
+            <p>Scroll to visualize the engine.</p>
+        </div>
+        
+        <!-- Section 2 -->
+        <div class="section right gs_reveal">
+            <span class="eyebrow">Groq LPU Engine</span>
+            <h2>Deep Biological<br>Insights.</h2>
+            <p>Upload your lab reports and instantly decode complex biomarkers into evidence-based nutritional protocols.</p>
+        </div>
+
+        <!-- Section 3 -->
+        <div class="section center gs_reveal">
+            <span class="eyebrow">System Ready</span>
+            <h2>Enter the Workspace</h2>
+            <a href="http://localhost:8501" class="launch-btn">Launch ClarityLab</a>
+        </div>
+    </div>
+
+    <!-- GSAP & Three.js Libraries from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        // --- 1. THREE.JS SCENE SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        
+        // Camera setup
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 50;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        // --- 2. CREATE THE 3D BIO-SCANNER MESH ---
+        const group = new THREE.Group();
+
+        // Outer Wireframe Torus (Looks like a sci-fi medical scanner)
+        const geometry = new THREE.TorusKnotGeometry(12, 3, 200, 32);
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0x00f0ff, 
+            wireframe: true, 
+            transparent: true, 
+            opacity: 0.15 
+        });
+        const outerMesh = new THREE.Mesh(geometry, material);
+        group.add(outerMesh);
+
+        // Inner Glowing Core
+        const coreGeo = new THREE.IcosahedronGeometry(7, 1);
+        const coreMat = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff88, 
+            wireframe: true, 
+            transparent: true, 
+            opacity: 0.3 
+        });
+        const innerMesh = new THREE.Mesh(coreGeo, coreMat);
+        group.add(innerMesh);
+
+        scene.add(group);
+
+        // --- 3. ANIMATE ON SCROLL (THE YOUTUBE EFFECT) ---
+        // Rotate the 3D model as you scroll down
+        gsap.to(group.rotation, {
+            y: Math.PI * 2, // Spin a full 360 degrees
+            x: Math.PI / 2, // Tilt upwards
+            ease: "none",
+            scrollTrigger: {
+                trigger: ".scroll-content",
+                start: "top top",
+                end: "bottom bottom",
+                scrub: 1.5 // Smooth catching up effect
+            }
+        });
+
+        // Move the camera closer to the object as you scroll down
+        gsap.to(camera.position, {
+            z: 22, // Zoom in
+            ease: "power1.inOut",
+            scrollTrigger: {
+                trigger: ".scroll-content",
+                start: "top top",
+                end: "bottom bottom",
+                scrub: 2
+            }
+        });
+
+        // Fade in HTML text sections sequentially
+        const sections = document.querySelectorAll('.gs_reveal');
+        sections.forEach((sec) => {
+            gsap.fromTo(sec, 
+                { opacity: 0, y: 100 }, 
+                { opacity: 1, y: 0, duration: 1.5, ease: "power3.out",
+                  scrollTrigger: {
+                      trigger: sec,
+                      start: "top 75%",
+                  }
+            });
+        });
+
+        // --- 4. CONTINUOUS RENDER LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+            // Slight constant rotation even when not scrolling
+            innerMesh.rotation.y += 0.005;
+            innerMesh.rotation.x += 0.002;
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Handle window resizing
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
