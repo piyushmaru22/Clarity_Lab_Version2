@@ -522,7 +522,7 @@ def to_float(v):
 # ---------------------------------------------------------
 # Document Text Extraction (page-wise, OCR only where needed)
 # ---------------------------------------------------------
-MODEL = "openai/gpt-oss-120b"
+MODEL = "mixtral-8x7b-32768"
 MAX_PAGES = 40
 CHUNK_CHARS = 9000
 OCR_DPI = 130
