@@ -628,36 +628,45 @@ def chunk_lines(lines, size=CHUNK_CHARS):
 SYS = "You are a clinical lab analysis engine. Respond only with valid JSON."
 
 def call_groq(client, system, user, max_tokens, retries=5):
-    """One API call with manual JSON extraction to bypass strict 400 validation errors."""
-    last = None
+    """One API call with manual JSON extraction and verbose error reporting."""
+    last_error = None
     for attempt in range(retries):
         try:
+            # Enforce JSON-only output in the system prompt to prevent conversational text
+            strict_system = system + " Output ONLY raw JSON. No markdown, no disclaimers, no conversational text."
+            
             r = client.chat.completions.create(
                 model=MODEL,
-                messages=[{"role": "system", "content": system},
-                          {"role": "user", "content": user}],
-                # We removed response_format={"type": "json_object"} to stop the crashing
+                messages=[
+                    {"role": "system", "content": strict_system},
+                    {"role": "user", "content": user}
+                ],
                 temperature=0.1,
                 max_tokens=max_tokens,
             )
             
-            content = r.choices[0].message.content
+            content = r.choices[0].message.content or ""
             
-            # Manually extract the JSON bracket block to ignore extra conversational text
+            # 1. Strip markdown wrappers if the model hallucinated them
+            content = content.replace("```json", "").replace("```", "").strip()
+            
+            # 2. Extract the bracketed JSON object
             start_idx = content.find('{')
-            end_idx = content.rfind('}') + 1
+            end_idx = content.rfind('}')
             
-            if start_idx != -1 and end_idx != 0:
-                clean_json = content[start_idx:end_idx]
+            if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
+                clean_json = content[start_idx:end_idx+1]
                 return json.loads(clean_json)
             else:
-                return json.loads(content)
+                raise ValueError(f"No brackets found. Model output: '{content}'")
 
         except json.JSONDecodeError as e:
-            last = e
+            last_error = f"Invalid JSON generated: {e}. Model output: '{content}'"
+        except ValueError as e:
+            last_error = str(e)
         except Exception as e:
-            last = e
-            msg = str(e).lower()
+            last_error = str(e)
+            msg = last_error.lower()
             if "429" in msg or "rate" in msg or "413" in msg:
                 m = re.search(r"try again in ([\d.]+)\s*(ms|s|m)\b", msg)
                 wait = 3 * (attempt + 1)
@@ -666,8 +675,10 @@ def call_groq(client, system, user, max_tokens, retries=5):
                     wait = v / 1000 if m.group(2) == "ms" else v * 60 if m.group(2) == "m" else v
                 time.sleep(min(wait + 1, 40))
                 continue
-            raise
-    raise last
+            time.sleep(2)
+            
+    # If it fails all 5 retries, display the exact text the model returned
+    raise Exception(f"Failed after 5 attempts. Last error: {last_error}")
 
 def _status(item):
     """Compute high/low/normal in Python from value + reference range (zero tokens)."""
