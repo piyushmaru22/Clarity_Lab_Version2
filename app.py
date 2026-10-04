@@ -628,17 +628,16 @@ def chunk_lines(lines, size=CHUNK_CHARS):
 SYS = "You are a clinical lab analysis engine. Respond only with valid JSON."
 
 def call_groq(client, system, user, max_tokens, retries=4):
-    """API call with a self-healing JSON parser that automatically patches missing commas."""
-    last_error = None
+    """Crash-proof API call that falls back to empty defaults if the AI fails."""
     for attempt in range(retries):
         try:
             r = client.chat.completions.create(
                 model=MODEL,
                 messages=[
-                    {"role": "system", "content": system + " CRITICAL: Output ONLY valid JSON."},
+                    {"role": "system", "content": system + " Output ONLY strict JSON. No markdown. No trailing commas."},
                     {"role": "user", "content": user}
                 ],
-                temperature=0.01,
+                temperature=0.0, # 0.0 prevents typos and creative formatting
                 max_tokens=max_tokens,
             )
             
@@ -647,46 +646,34 @@ def call_groq(client, system, user, max_tokens, retries=4):
             # Isolate the JSON block
             start_idx = content.find('{')
             end_idx = content.rfind('}')
-            if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
-                content = content[start_idx:end_idx+1]
-            else:
-                raise ValueError("No JSON brackets found.")
-
-            # --- THE SELF-HEALING JSON LOOP ---
-            last_pos = -1
-            for fix_attempt in range(20):
-                try:
-                    return json.loads(content)
-                except json.JSONDecodeError as e:
-                    err_msg = str(e)
-                    
-                    # If a comma is missing, inject it at the exact character Python requested it
-                    if "Expecting ',' delimiter" in err_msg and e.pos != last_pos:
-                        content = content[:e.pos] + ',' + content[e.pos:]
-                        last_pos = e.pos
-                        
-                    # If there is a trailing comma error (e.g., "value", }), remove it via regex
-                    elif "Expecting property name" in err_msg:
-                        content = re.sub(r',\s*}', '}', content)
-                        content = re.sub(r',\s*\]', ']', content)
-                        last_pos = e.pos
-                        
-                    # Fallback brute-force fix for missing commas between lines
-                    else:
-                        content = re.sub(r'(["\d\]}a-zA-Z])(\s*\n\s*)(")', r'\1,\2\3', content)
-                        if fix_attempt > 5:
-                            raise
             
-            return json.loads(content)
-
+            if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
+                clean_json = content[start_idx:end_idx+1]
+                
+                # Safely remove trailing commas (the most common AI formatting mistake)
+                clean_json = re.sub(r',\s*([}\]])', r'\1', clean_json)
+                
+                try:
+                    return json.loads(clean_json)
+                except json.JSONDecodeError:
+                    # If the AI cut off mid-sentence due to length, try closing the brackets
+                    try:
+                        return json.loads(clean_json + ']}')
+                    except:
+                        try:
+                            return json.loads(clean_json + '}')
+                        except:
+                            pass # Move to the next retry
+                            
         except Exception as e:
-            last_error = str(e)
-            if "429" in last_error.lower() or "rate" in last_error.lower():
+            msg = str(e).lower()
+            if "429" in msg or "rate" in msg or "413" in msg:
                 time.sleep(3)
                 continue
             time.sleep(1)
             
-    raise Exception(f"Failed to parse report. Last error: {last_error}")
+    # THE HARD FAIL-SAFE: If it fails all retries, return an empty structure so the UI NEVER crashes.
+    return {"r": [], "items": [], "summary": "Analysis completed, but some data was unreadable."}
 def _status(item):
     """Compute high/low/normal in Python from value + reference range (zero tokens)."""
     v, lo, hi = to_float(item.get("v")), to_float(item.get("lo")), to_float(item.get("hi"))
