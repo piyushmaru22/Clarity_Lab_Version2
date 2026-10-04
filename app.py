@@ -522,7 +522,7 @@ def to_float(v):
 # ---------------------------------------------------------
 # Document Text Extraction (page-wise, OCR only where needed)
 # ---------------------------------------------------------
-MODEL = "llama-3.1-8b-instant"
+MODEL = "openai/gpt-oss-120b"
 MAX_PAGES = 40
 CHUNK_CHARS = 9000
 OCR_DPI = 130
@@ -628,17 +628,14 @@ def chunk_lines(lines, size=CHUNK_CHARS):
 SYS = "You are a clinical lab analysis engine. Respond only with valid JSON."
 
 def call_groq(client, system, user, max_tokens, retries=5):
-    """One API call with manual JSON extraction and verbose error reporting."""
+    """One API call with manual JSON extraction to bypass strict validation errors."""
     last_error = None
     for attempt in range(retries):
         try:
-            # Enforce JSON-only output in the system prompt to prevent conversational text
-            strict_system = system + " Output ONLY raw JSON. No markdown, no disclaimers, no conversational text."
-            
             r = client.chat.completions.create(
                 model=MODEL,
                 messages=[
-                    {"role": "system", "content": strict_system},
+                    {"role": "system", "content": system},
                     {"role": "user", "content": user}
                 ],
                 temperature=0.1,
@@ -647,10 +644,10 @@ def call_groq(client, system, user, max_tokens, retries=5):
             
             content = r.choices[0].message.content or ""
             
-            # 1. Strip markdown wrappers if the model hallucinated them
+            # 1. Clean up potential markdown blocks the model might hallucinate
             content = content.replace("```json", "").replace("```", "").strip()
             
-            # 2. Extract the bracketed JSON object
+            # 2. Extract the bracketed JSON object manually
             start_idx = content.find('{')
             end_idx = content.rfind('}')
             
@@ -658,7 +655,7 @@ def call_groq(client, system, user, max_tokens, retries=5):
                 clean_json = content[start_idx:end_idx+1]
                 return json.loads(clean_json)
             else:
-                raise ValueError(f"No brackets found. Model output: '{content}'")
+                raise ValueError(f"No JSON brackets found. Model output: '{content}'")
 
         except json.JSONDecodeError as e:
             last_error = f"Invalid JSON generated: {e}. Model output: '{content}'"
@@ -679,7 +676,6 @@ def call_groq(client, system, user, max_tokens, retries=5):
             
     # If it fails all 5 retries, display the exact text the model returned
     raise Exception(f"Failed after 5 attempts. Last error: {last_error}")
-
 def _status(item):
     """Compute high/low/normal in Python from value + reference range (zero tokens)."""
     v, lo, hi = to_float(item.get("v")), to_float(item.get("lo")), to_float(item.get("hi"))
