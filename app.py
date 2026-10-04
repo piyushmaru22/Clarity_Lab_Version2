@@ -796,17 +796,32 @@ def normalise(param) -> dict:
     low = to_float(param.get("ref_low"))
     high = to_float(param.get("ref_high"))
     unit = str(param.get("unit", "") or "")
+    
     if value is None:
         m = re.search(NUM_RE, raw_value)
         value = float(m.group()) if m else None
+        
     if low is None and high is None:
         ref_part = raw_value.split("(", 1)[1] if "(" in raw_value else ""
         rng = re.search(rf"({NUM_RE})\s*(?:-|–|to)\s*({NUM_RE})", ref_part)
         if rng:
             low, high = float(rng.group(1)), float(rng.group(2))
+            
+    # Safely handle Questions if the AI returns a string, list, or null
     questions = param.get("questions_for_doctor") or []
     if isinstance(questions, str):
         questions = [q.strip() for q in questions.split("\n") if q.strip()]
+        
+    # Safely handle Food if the AI returns a list, string, or null
+    food_data = param.get("food", "") or param.get("food_remedies", "")
+    if isinstance(food_data, list):
+        # Convert list into a single bulleted string
+        food_data = "\n• ".join(str(x) for x in food_data)
+    elif food_data is None:
+        food_data = ""
+    else:
+        food_data = str(food_data)
+        
     return {
         "name": param.get("name", "Biomarker"),
         "category": param.get("category", ""),
@@ -817,8 +832,8 @@ def normalise(param) -> dict:
         "high": high,
         "code": status_code_of(param),
         "explanation": param.get("explanation", ""),
-        "food": param.get("food", "") or param.get("food_remedies", ""),
-        "questions": questions,
+        "food": food_data,
+        "questions": questions if isinstance(questions, list) else [],
     }
 
 def fmt_num(n: float) -> str:
