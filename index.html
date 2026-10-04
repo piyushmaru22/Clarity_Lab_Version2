@@ -1,349 +1,440 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="locked">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClarityLab AI | Diagnostic Engine</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-deep: #03050a;
-            --neon-cyan: #00f0ff;
-            --neon-emerald: #00ff88;
-            --glass-bg: rgba(10, 15, 30, 0.4);
-            --glass-border: rgba(255, 255, 255, 0.1);
-        }
-        
-        * { box-sizing: border-box; }
-        
-        body, html {
-            margin: 0; padding: 0;
-            background-color: var(--bg-deep);
-            color: #fff;
-            font-family: 'Outfit', sans-serif;
-            overflow-x: hidden;
-            cursor: default;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClarityLab AI | Cinematic Entry</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#010203;--cyan:#00f0ff;--emerald:#00ff88}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:#fff;font-family:'Outfit',sans-serif;overflow-x:hidden}
+::-webkit-scrollbar{width:10px}::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:rgba(0,240,255,.4);border-radius:10px}
 
-        /* Animated Scrollbar */
-        ::-webkit-scrollbar { width: 12px; }
-        ::-webkit-scrollbar-track { background: var(--bg-deep); }
-        ::-webkit-scrollbar-thumb { background: rgba(0, 240, 255, 0.3); border-radius: 10px; border: 3px solid var(--bg-deep); }
-        ::-webkit-scrollbar-thumb:hover { background: var(--neon-cyan); }
+#webgl{position:fixed;inset:0;z-index:1;pointer-events:none}
+#webgl canvas{display:block}
+/* vignette + faint scanlines over the canvas */
+.fx{position:fixed;inset:0;z-index:3;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 30%,rgba(0,0,0,.94) 100%),
+  repeating-linear-gradient(0deg,rgba(255,255,255,.015) 0 1px,transparent 1px 3px)}
+#progress{position:fixed;top:0;left:0;height:2px;width:100%;z-index:5;transform:scaleX(0);transform-origin:left;
+  background:linear-gradient(90deg,var(--cyan),var(--emerald));box-shadow:0 0 6px rgba(0,240,255,.5)}
 
-        /* 3D Canvas Background */
-        #webgl-container {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            z-index: 1; pointer-events: none;
-        }
+.scroll-content{position:relative;z-index:4}
+.section{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:0 8%}
+.section.center{align-items:center}
+.section.right{align-items:flex-end}
 
-        /* Ambient Background Glow */
-        .ambient-glow {
-            position: fixed;
-            top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 70vw; height: 70vw;
-            background: radial-gradient(circle, rgba(0, 240, 255, 0.08) 0%, rgba(0, 255, 136, 0.03) 40%, transparent 70%);
-            z-index: 0; filter: blur(60px); pointer-events: none;
-        }
+/* glassmorphism */
+.glass{position:relative;max-width:640px;padding:clamp(28px,4vw,56px);border-radius:28px;overflow:hidden;
+  background:linear-gradient(135deg,rgba(255,255,255,.04),rgba(2,4,8,.72));
+  border:1px solid rgba(255,255,255,.08);
+  backdrop-filter:blur(10px) saturate(140%);-webkit-backdrop-filter:blur(10px) saturate(140%);
+  box-shadow:0 30px 80px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.08)}
+.glass::before{content:"";position:absolute;top:0;left:10%;right:10%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(0,240,255,.45),transparent)}
+.center .glass{text-align:center}
 
-        /* Scrollable Content */
-        .scroll-wrapper {
-            position: relative; z-index: 2;
-        }
+h1{font-size:clamp(2.6rem,7vw,5.5rem);font-weight:800;margin:0;letter-spacing:-.04em;line-height:1.02}
+h2{font-size:clamp(2rem,4.6vw,3.6rem);font-weight:800;margin:0;line-height:1.08}
+p{font-size:clamp(1.05rem,1.8vw,1.4rem);color:#8b97aa;line-height:1.6;margin:22px 0 0}
+.eyebrow{display:block;font-family:'JetBrains Mono',monospace;color:var(--cyan);letter-spacing:.3em;
+  text-transform:uppercase;font-size:.85rem;margin-bottom:20px}
+.highlight{color:var(--cyan);text-shadow:0 0 10px rgba(0,240,255,.18)}
+.word{display:inline-block;white-space:nowrap}
+.char{display:inline-block;text-align:center;opacity:0}
 
-        .section {
-            min-height: 100vh;
-            display: flex; flex-direction: column;
-            justify-content: center;
-            padding: 0 10%;
-        }
-        .section.left { align-items: flex-start; text-align: left; }
-        .section.right { align-items: flex-end; text-align: right; }
-        .section.center { align-items: center; text-align: center; }
+.launch-btn{display:inline-block;padding:20px 40px;border-radius:16px;
+  background:linear-gradient(135deg,#00c4d4,#0546c9);color:#fff;font-size:1.2rem;font-weight:800;
+  text-decoration:none;text-transform:uppercase;letter-spacing:.1em;will-change:transform;
+  box-shadow:0 10px 30px rgba(0,0,0,.6),0 0 14px rgba(0,240,255,.18),inset 0 1px 3px rgba(255,255,255,.25);transition:box-shadow .3s}
+.launch-btn:hover,.launch-btn:focus-visible{box-shadow:0 20px 50px rgba(0,0,0,.7),0 0 26px rgba(0,240,255,.35),inset 0 1px 3px rgba(255,255,255,.35);outline:none}
+.cta{margin-top:40px;padding:30px;display:inline-block}
 
-        /* Glassmorphism Cards */
-        .glass-card {
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            padding: 50px;
-            border-radius: 30px;
-            max-width: 600px;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2);
-            position: relative; overflow: hidden;
-        }
-        
-        .glass-card::before {
-            content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
-            background: linear-gradient(to right, transparent, rgba(255,255,255,0.05), transparent);
-            transform: skewX(-20deg); animation: shimmer 8s infinite; pointer-events: none;
-        }
-
-        @keyframes shimmer {
-            0% { left: -100%; } 20% { left: 200%; } 100% { left: 200%; }
-        }
-
-        /* Typography */
-        h1 { font-size: 4.5rem; font-weight: 800; margin: 0 0 20px; line-height: 1.1; letter-spacing: -0.03em; }
-        h2 { font-size: 3rem; font-weight: 800; margin: 0 0 20px; line-height: 1.2; }
-        p { font-size: 1.3rem; color: #a1a1aa; margin: 0; line-height: 1.7; }
-        
-        .eyebrow {
-            display: inline-block;
-            font-family: 'JetBrains Mono', monospace; color: var(--neon-cyan);
-            letter-spacing: 0.25em; text-transform: uppercase; font-size: 0.9rem; font-weight: 700;
-            margin-bottom: 24px; padding: 8px 16px;
-            background: rgba(0, 240, 255, 0.1); border: 1px solid rgba(0, 240, 255, 0.3);
-            border-radius: 100px; box-shadow: 0 0 15px rgba(0,240,255,0.2);
-        }
-        
-        .highlight { 
-            background: linear-gradient(135deg, var(--neon-cyan), var(--neon-emerald));
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
-        }
-
-        /* Premium Button */
-        .launch-btn {
-            display: inline-flex; align-items: center; justify-content: center;
-            margin-top: 40px; padding: 22px 48px; border-radius: 100px;
-            background: #fff; color: #000;
-            font-size: 1.3rem; font-weight: 800; text-decoration: none; text-transform: uppercase;
-            letter-spacing: 0.1em; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 15px 35px rgba(255,255,255,0.2);
-            pointer-events: auto; position: relative; overflow: hidden;
-        }
-        
-        .launch-btn::after {
-            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(135deg, var(--neon-cyan), #0055ff);
-            opacity: 0; transition: opacity 0.4s; z-index: -1; border-radius: 100px;
-        }
-
-        .launch-btn:hover {
-            color: #fff; transform: translateY(-8px) scale(1.05);
-            box-shadow: 0 25px 50px rgba(0, 240, 255, 0.4), 0 0 40px var(--neon-cyan);
-        }
-        .launch-btn:hover::after { opacity: 1; }
-
-        /* Scroll Indicator */
-        .scroll-indicator {
-            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-            display: flex; flex-direction: column; align-items: center; gap: 10px;
-            font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: #666;
-            letter-spacing: 0.2em; text-transform: uppercase; z-index: 2;
-        }
-        .scroll-line {
-            width: 2px; height: 40px; background: rgba(255,255,255,0.1); position: relative; overflow: hidden;
-        }
-        .scroll-line::after {
-            content: ''; position: absolute; top: -50%; left: 0; width: 100%; height: 50%;
-            background: var(--neon-cyan); animation: drop 2s infinite;
-        }
-        @keyframes drop { 0% { top: -50%; } 100% { top: 100%; } }
-    </style>
+@media(max-width:700px){.section{padding:0 5%}.section.right{align-items:flex-start}}
+html.locked{overflow:hidden}
+a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:4px}
+#loader{position:fixed;inset:0;z-index:10;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;clip-path:circle(150% at 50% 50%)}
+.ld-count{font-weight:800;font-size:clamp(4rem,16vw,11rem);letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums}
+.ld-count small{font-size:.28em;color:#6b7788;margin-left:.15em;letter-spacing:0}
+.ld-bar{width:min(240px,50vw);height:1px;background:rgba(255,255,255,.12);overflow:hidden}
+.ld-bar i{display:block;height:100%;background:var(--cyan);transform:scaleX(0);transform-origin:left}
+.ld-label{font-family:'JetBrains Mono',monospace;font-size:.75rem;letter-spacing:.25em;text-transform:uppercase;color:#6b7788}
+#iris{position:fixed;inset:0;z-index:9;background:var(--bg);display:none;pointer-events:none}
+.sweep{position:fixed;left:0;right:0;top:0;height:1px;z-index:6;opacity:0;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(0,240,255,.55),transparent)}
+.top{position:fixed;top:0;left:0;right:0;z-index:7;display:flex;justify-content:space-between;align-items:center;padding:20px 5%}
+.brand{font-weight:800;font-size:1.15rem;letter-spacing:-.02em;color:#fff;text-decoration:none}
+.top-link{font-family:'JetBrains Mono',monospace;font-size:.8rem;color:#cbd5e1;text-decoration:none;padding:10px 18px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(2,4,8,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:border-color .3s,color .3s}
+.top-link:hover{border-color:rgba(0,240,255,.6);color:#fff}
+.dots{position:fixed;right:22px;top:50%;transform:translateY(-50%);z-index:7;display:flex;flex-direction:column;gap:14px}
+.dots button{width:10px;height:10px;padding:0;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:transparent;cursor:pointer;transition:all .45s cubic-bezier(.2,.8,.2,1)}
+.dots button.on{height:30px;background:var(--cyan);border-color:var(--cyan)}
+.hint{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:7;display:flex;flex-direction:column;align-items:center;gap:10px;opacity:0;transition:opacity .6s;pointer-events:none;font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;color:#7c8799}
+.hint.on{opacity:1}
+.hint i{width:1px;height:38px;background:linear-gradient(var(--cyan),transparent);animation:drip 1.8s ease-in-out infinite;transform-origin:top}
+@keyframes drip{0%{transform:scaleY(0)}50%{transform:scaleY(1)}100%{transform:scaleY(1);opacity:0}}
+@media(max-width:700px){.dots{right:10px}.top-link{padding:8px 14px}}
+@media(prefers-reduced-motion:reduce){.hint i{animation:none}}
+</style>
+<script>/* failsafe: never leave the user stuck behind the loader if a CDN fails */
+setTimeout(function(){if(!window.__ready){var l=document.getElementById('loader');if(l)l.style.display='none';document.documentElement.classList.remove('locked');}},9000);</script>
 </head>
 <body>
+<div id="progress"></div>
+<div id="webgl"></div>
+<div class="fx"></div>
+<div class="sweep"></div>
+<header class="top">
+  <a class="brand" href="#">ClarityLab</a>
+  <a class="top-link" data-portal href="https://claritylabversion2-dsfderke2vz3z2c46jdinz.streamlit.app/">Launch app</a>
+</header>
+<nav class="dots" aria-label="Sections"><button aria-label="Intro"></button><button aria-label="Engine"></button><button aria-label="Launch"></button></nav>
+<div class="hint"><span>Scroll</span><i></i></div>
+<div id="iris"></div>
+<div id="loader" aria-hidden="true">
+  <div class="ld-count"><span id="ldNum">0</span><small>%</small></div>
+  <div class="ld-bar"><i></i></div>
+  <div class="ld-label">Calibrating bio-engine</div>
+</div>
 
-    <div class="ambient-glow"></div>
-    <div id="webgl-container"></div>
-
-    <div class="scroll-wrapper">
-        <!-- Section 1 -->
-        <div class="section left">
-            <div class="glass-card gs_reveal">
-                <span class="eyebrow">ClarityLab AI v2.0</span>
-                <h1>Decode Your<br><span class="highlight">Biology.</span></h1>
-                <p>An advanced Groq LPU diagnostic engine. Scroll to initialize the bio-scanner.</p>
-            </div>
-            <div class="scroll-indicator">
-                Scroll<div class="scroll-line"></div>
-            </div>
-        </div>
-        
-        <!-- Section 2 -->
-        <div class="section right">
-            <div class="glass-card gs_reveal">
-                <span class="eyebrow">Real-time Analysis</span>
-                <h2>Biomarker<br>Intelligence.</h2>
-                <p>Drop your PDF or image reports. Our AI reads the data, isolates anomalies, and prescribes evidence-based Indian dietary solutions instantly.</p>
-            </div>
-        </div>
-
-        <!-- Section 3 -->
-        <div class="section center">
-            <div class="glass-card gs_reveal" style="text-align: center; display: flex; flex-direction: column; align-items: center;">
-                <span class="eyebrow">System Ready</span>
-                <h2 style="margin-bottom: 10px;">Enter the Workspace</h2>
-                <p>The engine is primed and standing by.</p>
-                
-                <!-- REPLACE THE LINK BELOW WITH YOUR LIVE STREAMLIT URL -->
-                <a href="https://claritylabversion2-dsfderke2vz3z2c46jdinz.streamlit.app/" class="launch-btn"><span>Launch ClarityLab</span></a>
-            </div>
-        </div>
+<main class="scroll-content">
+  <section class="section">
+    <div class="glass">
+      <span class="eyebrow">ClarityLab AI</span>
+      <h1>The Future of<br><span class="highlight">Diagnostics.</span></h1>
+      <p>Scroll to visualize the engine.</p>
     </div>
+  </section>
 
-    <!-- Core Libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+  <section class="section right">
+    <div class="glass">
+      <span class="eyebrow">Groq LPU Engine</span>
+      <h2>Deep Biological<br>Insights.</h2>
+      <p>Upload your lab reports and instantly decode complex biomarkers into evidence-based nutritional protocols.</p>
+    </div>
+  </section>
 
-    <script>
-        gsap.registerPlugin(ScrollTrigger);
+  <section class="section center">
+    <div class="glass">
+      <span class="eyebrow">System Ready</span>
+      <h2>Enter the Workspace</h2>
+      <div class="cta"><a href="https://claritylabversion2-dsfderke2vz3z2c46jdinz.streamlit.app/" class="launch-btn" id="magnet" data-portal>Launch ClarityLab</a></div>
+    </div>
+  </section>
+</main>
 
-        // --- 1. THREE.JS SETUP ---
-        const container = document.getElementById('webgl-container');
-        const scene = new THREE.Scene();
-        
-        // Add subtle fog to blend things into the dark background
-        scene.fog = new THREE.FogExp2(0x03050a, 0.015);
+<!-- Three.js r128 + post-processing (non-module builds that attach to global THREE) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 40;
+<script>
+gsap.registerPlugin(ScrollTrigger);
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const W = () => innerWidth, H = () => innerHeight;
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        container.appendChild(renderer.domElement);
+/* ---------- 1. SCENE, CAMERA, RENDERER ---------- */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x010203);
+const camera = new THREE.PerspectiveCamera(75, W() / H(), 0.1, 1000);
+camera.position.z = 50;
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(W(), H());
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+document.getElementById('webgl').appendChild(renderer.domElement);
+gsap.from(renderer.domElement, { opacity: 0, duration: 2.5, ease: 'power2.out' });
 
-        // --- 2. CREATE THE BIO-NEURAL CORE ---
-        const coreGroup = new THREE.Group();
-        scene.add(coreGroup);
+/* ---------- 2. POST-PROCESSING: BLOOM ---------- */
+const composer = new THREE.EffectComposer(renderer);
+composer.addPass(new THREE.RenderPass(scene, camera));
+const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(W(), H()), 0.45, 0.3, 0.12);
+composer.addPass(bloom);
+/* transition state: cam = scroll-driven distance, dive = intro/portal fly, pulse = section-change warp */
+const cam = { z: 50 }, dive = { v: 90 }, pulse = { v: 0 };
+history.scrollRestoration = 'manual'; scrollTo(0, 0);
+const warp = new THREE.ShaderPass({
+  uniforms: { tDiffuse: { value: null }, uAmt: { value: 0 }, uTime: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.); }',
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uAmt, uTime; varying vec2 vUv;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main(){
+      vec2 c = vUv - .5; float d = length(c);
+      vec2 uv = c * (1. - uAmt * 2.2) + .5;          // zoom punch
+      vec2 o = c * d * uAmt * 1.6;                   // radial RGB split
+      vec3 col = vec3(texture2D(tDiffuse, uv - o).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv + o).b);
+      col += (h(vUv * 1000. + uTime) - .5) * .03;    // film grain
+      gl_FragColor = vec4(col, 1.);
+    }`
+});
+composer.addPass(warp);
 
-        // Layer 1: Solid Dark Inner Core
-        const innerGeo = new THREE.IcosahedronGeometry(8, 2);
-        const innerMat = new THREE.MeshBasicMaterial({ color: 0x050a14 });
-        const innerMesh = new THREE.Mesh(innerGeo, innerMat);
-        coreGroup.add(innerMesh);
+/* ---------- 3. OBJECTS (rig = mouse + position, spin = scroll rotation) ---------- */
+const rig = new THREE.Group(), spin = new THREE.Group();
+rig.add(spin); scene.add(rig);
+const glowMat = (color, opacity) => new THREE.MeshBasicMaterial({
+  color, wireframe: true, transparent: true, opacity, depthWrite: false });
 
-        // Layer 2: Glowing Wireframe Shell (Additive Blending)
-        const outerGeo = new THREE.IcosahedronGeometry(9, 2);
-        const outerMat = new THREE.MeshBasicMaterial({ 
-            color: 0x00f0ff, 
-            wireframe: true, 
-            transparent: true, 
-            opacity: 0.2,
-            blending: THREE.AdditiveBlending 
+const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(12, 3, 220, 24), glowMat(0x00f0ff, 0.16));
+const core = new THREE.Mesh(new THREE.IcosahedronGeometry(7, 1), glowMat(0x00ff88, 0.28));
+const ring = new THREE.Mesh(new THREE.TorusGeometry(27, 0.09, 8, 180), glowMat(0x00ff88, 0.3));
+ring.rotation.x = Math.PI / 2.4;
+spin.add(knot, core, ring);
+
+/* Bio-data particles: half hug the knot's curve, half drift in a wide shell */
+const N = 7000;
+const pos = new Float32Array(N * 3), col = new Float32Array(N * 3), size = new Float32Array(N), phase = new Float32Array(N);
+const cyan = new THREE.Color(0x00f0ff), emerald = new THREE.Color(0x00ff88);
+for (let i = 0; i < N; i++) {
+  let x, y, z;
+  if (i < N * 0.5) {                       // along the torus-knot curve (p=2, q=3)
+    const u = Math.random() * Math.PI * 4, qp = 1.5 * u, cs = Math.cos(qp);
+    const r = 3 + Math.random() * 6, th = Math.random() * 6.283, ph = Math.acos(2 * Math.random() - 1);
+    x = 12 * (2 + cs) * 0.5 * Math.cos(u) + r * Math.sin(ph) * Math.cos(th);
+    y = 12 * (2 + cs) * 0.5 * Math.sin(u) + r * Math.sin(ph) * Math.sin(th);
+    z = 12 * Math.sin(qp) * 0.5 + r * Math.cos(ph);
+  } else {                                 // wide shell
+    const r = 20 + Math.random() * 40, th = Math.random() * 6.283, ph = Math.acos(2 * Math.random() - 1);
+    x = r * Math.sin(ph) * Math.cos(th); y = r * Math.sin(ph) * Math.sin(th); z = r * Math.cos(ph);
+  }
+  pos.set([x, y, z], i * 3);
+  const c = cyan.clone().lerp(emerald, Math.random());
+  col.set([c.r, c.g, c.b], i * 3);
+  size[i] = 0.5 + Math.random() * 1.3; phase[i] = Math.random() * 6.283;
+}
+const pg = new THREE.BufferGeometry();
+pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+pg.setAttribute('aColor', new THREE.BufferAttribute(col, 3));
+pg.setAttribute('aSize', new THREE.BufferAttribute(size, 1));
+pg.setAttribute('aPhase', new THREE.BufferAttribute(phase, 1));
+const U = { uTime: { value: 0 }, uPR: { value: renderer.getPixelRatio() }, uBoost: { value: 0 },
+  uMouse: { value: new THREE.Vector2(9, 9) }, uAspect: { value: W() / H() } };
+const particles = new THREE.Points(pg, new THREE.ShaderMaterial({
+  uniforms: U, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: `
+    attribute vec3 aColor; attribute float aSize, aPhase;
+    uniform float uTime, uPR, uBoost, uAspect; uniform vec2 uMouse;
+    varying vec3 vColor; varying float vTw;
+    void main(){
+      vec3 p = position + vec3(sin(uTime*.5+aPhase), cos(uTime*.4+aPhase*1.3), sin(uTime*.3+aPhase*.7)) * .9;
+      vec4 mv = modelViewMatrix * vec4(p, 1.);
+      vec4 clip = projectionMatrix * mv;
+      vec2 d = clip.xy / clip.w - uMouse; d.x *= uAspect;      // particles scatter away from the cursor
+      clip.xy += normalize(d + 1e-4) * smoothstep(.35, 0., length(d)) * .14 * clip.w;
+      gl_Position = clip;
+      vTw = .65 + .35 * sin(uTime*2. + aPhase*5.);
+      vColor = aColor;
+      gl_PointSize = aSize * uPR * (1. + uBoost) * (90. / -mv.z) * vTw;
+    }`,
+  fragmentShader: `
+    varying vec3 vColor; varying float vTw;
+    void main(){
+      float d = length(gl_PointCoord - .5);
+      gl_FragColor = vec4(vColor * .75, smoothstep(.5, 0., d) * vTw * .55);
+    }`
+}));
+spin.add(particles);
+
+/* ---------- 4. MOUSE PARALLAX ---------- */
+const target = { x: 0, y: 0 }, mouse = { x: 0, y: 0 };
+addEventListener('pointermove', e => {
+  target.x = (e.clientX / W()) * 2 - 1;
+  target.y = -((e.clientY / H()) * 2 - 1);
+});
+
+/* ---------- 5. SCROLL: CAMERA, ROTATION, VELOCITY ---------- */
+const k = W() < 800 ? 0.25 : 1;          // keep the model closer to centre on phones
+rig.position.x = 9 * k;
+gsap.timeline({ scrollTrigger: { trigger: '.scroll-content', start: 'top top', end: 'bottom bottom', scrub: 1.5 } })
+  .to(rig.position, { x: -9 * k, duration: 1, ease: 'power1.inOut' }, 0)
+  .to(rig.position, { x: 0, duration: 1, ease: 'power1.inOut' }, 1)
+  .to(spin.rotation, { y: Math.PI * 2, x: Math.PI / 2, duration: 2, ease: 'none' }, 0)
+  .to(cam, { z: 26, duration: 2, ease: 'power1.inOut' }, 0);
+
+gsap.to('#progress', { scaleX: 1, ease: 'none',
+  scrollTrigger: { trigger: document.body, start: 'top top', end: 'bottom bottom', scrub: 0.3 } });
+
+let scrollV = 0, vel = 0;
+ScrollTrigger.create({ trigger: document.body, start: 0, end: 'max', onUpdate: s => { scrollV = s.getVelocity(); } });
+
+/* ---------- 6. RENDER LOOP ---------- */
+const clock = new THREE.Clock();
+(function tick() {
+  requestAnimationFrame(tick);
+  const t = clock.getElapsedTime();
+  mouse.x += (target.x - mouse.x) * 0.05;
+  mouse.y += (target.y - mouse.y) * 0.05;
+  scrollV *= 0.92; vel += (scrollV - vel) * 0.1;
+  const boost = Math.min(Math.abs(vel) / 2500, 1.5);   // 0 at rest, up to 1.5 on a hard scroll
+
+  spin.rotation.z += 0.0015 + boost * 0.02;
+  core.rotation.y += 0.005 + boost * 0.03; core.rotation.x += 0.002;
+  particles.rotation.y += 0.0006 + boost * 0.004;
+  ring.rotation.z -= 0.002 + boost * 0.01;
+
+  rig.rotation.y = mouse.x * 0.35;
+  rig.rotation.x = -mouse.y * 0.25;
+  rig.position.y = Math.sin(t * 0.6) * 0.8;
+  camera.position.x = mouse.x * 4;
+  camera.position.y = mouse.y * 3;
+  camera.position.z = cam.z + dive.v;
+  camera.fov = 75 + pulse.v * 22 + dive.v * 0.25; camera.updateProjectionMatrix();
+  rig.rotation.z = dive.v * 0.025;
+  camera.lookAt(0, 0, 0);
+
+  bloom.strength = 0.45 + boost * 0.25;
+  U.uTime.value = t; U.uBoost.value = boost * 0.6; U.uMouse.value.set(mouse.x, mouse.y);
+  warp.uniforms.uAmt.value = pulse.v * 0.06 + boost * 0.012 + Math.abs(dive.v) * 0.0006;
+  warp.uniforms.uTime.value = t;
+  composer.render();
+})();
+
+addEventListener('resize', () => {
+  camera.aspect = W() / H(); camera.updateProjectionMatrix();
+  renderer.setSize(W(), H()); composer.setSize(W(), H()); bloom.setSize(W(), H());
+  U.uAspect.value = W() / H(); lockWidths();
+});
+
+/* ---------- 7. SCI-FI TEXT DECODE ---------- */
+const GLYPHS = '01ATCGUN<>/\\#%&$*+=?ΔΣΩ';
+const allChars = [];
+function splitChars(el) {
+  el.setAttribute('aria-label', el.textContent.replace(/\s+/g, ' ').trim());
+  const chars = [];
+  const walk = node => [...node.childNodes].forEach(n => {
+    if (n.nodeType === 3) {
+      const frag = document.createDocumentFragment();
+      n.textContent.split(/(\s+)/).forEach(tok => {
+        if (!tok) return;
+        if (/^\s+$/.test(tok)) { frag.append(' '); return; }
+        const w = document.createElement('span'); w.className = 'word'; w.setAttribute('aria-hidden', 'true');
+        [...tok].forEach(ch => {
+          const c = document.createElement('span');
+          c.className = 'char'; c.textContent = ch; c.dataset.c = ch;
+          w.appendChild(c); chars.push(c);
         });
-        const outerMesh = new THREE.Mesh(outerGeo, outerMat);
-        coreGroup.add(outerMesh);
+        frag.appendChild(w);
+      });
+      n.replaceWith(frag);
+    } else if (n.nodeType === 1 && n.tagName !== 'BR') walk(n);
+  });
+  walk(el);
+  el._chars = chars; allChars.push(...chars);
+}
+function lockWidths() {          // fixed char widths stop the layout jittering while glyphs scramble
+  allChars.forEach(c => { c.style.width = ''; const t = c.textContent; c.textContent = c.dataset.c; c._w = c.getBoundingClientRect().width; c.textContent = t; });
+  allChars.forEach(c => { c.style.width = c._w + 'px'; });
+}
+function decode(el, d = 0) {
+  (el._tw || []).forEach(t => t.kill()); el._tw = [];
+  el._chars.forEach((c, i) => {
+    const o = { p: 0 };
+    el._tw.push(gsap.to(o, {
+      p: 1, ease: 'none', duration: reduced ? 0.01 : 0.8 + Math.random() * 0.7,
+      delay: reduced ? 0 : d + i * 0.035 + Math.random() * 0.35,
+      onStart: () => { c.style.opacity = 1; },
+      onUpdate: () => { const done = o.p > 0.8; c.textContent = done ? c.dataset.c : GLYPHS[(Math.random() * GLYPHS.length) | 0]; c.style.color = done ? '' : 'var(--emerald)'; },
+      onComplete: () => { c.textContent = c.dataset.c; c.style.color = ''; }
+    }));
+  });
+}
+function resetText(el) { (el._tw || []).forEach(t => t.kill()); el._chars.forEach(c => { c.style.opacity = 0; c.textContent = c.dataset.c; c.style.color = ''; }); }
 
-        // Layer 3: Floating Data Particles (Orbital Rings)
-        const particlesGeo = new THREE.BufferGeometry();
-        const particleCount = 1500;
-        const posArray = new Float32Array(particleCount * 3);
+/* ---------- SECTION TRANSITIONS (replay in both scroll directions) ---------- */
+const secs = [...document.querySelectorAll('.section')], dots = [...document.querySelectorAll('.dots button')];
+const hint = document.querySelector('.hint');
+const hues = [['#00f0ff', '#00ff88'], ['#00ff88', '#00f0ff'], ['#2f8bff', '#00ff88']];
+const kick = (p = 1) => { if (!reduced) gsap.fromTo(pulse, { v: p }, { v: 0, duration: 1.6, ease: 'expo.out', overwrite: true }); };
+let cur = -1, started = false;
 
-        for(let i = 0; i < particleCount * 3; i+=3) {
-            // Create a spherical shell distribution
-            const r = 12 + Math.random() * 15;
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos((Math.random() * 2) - 1);
-            
-            posArray[i] = r * Math.sin(phi) * Math.cos(theta);     // x
-            posArray[i+1] = r * Math.sin(phi) * Math.sin(theta);   // y
-            posArray[i+2] = r * Math.cos(phi);                     // z
-        }
+function show(i) {
+  const sec = secs[i], panel = sec.querySelector('.glass');
+  if (cur !== -1 && !reduced) {
+    const dir = i > cur ? 1 : -1;
+    kick();                                           // warp punch + RGB split
+    gsap.fromTo('.sweep', { y: dir > 0 ? 0 : H(), opacity: 0.7 }, { y: dir > 0 ? H() : 0, opacity: 0, duration: 0.9, ease: 'power2.inOut', overwrite: true });
+  }
+  cur = i; dots.forEach((d, j) => d.classList.toggle('on', j === i));
+  const [a, b] = hues[i].map(h => new THREE.Color(h));  // re-tint the model per section
+  gsap.to(knot.material.color, { r: a.r, g: a.g, b: a.b, duration: 1.2 });
+  gsap.to(core.material.color, { r: b.r, g: b.g, b: b.b, duration: 1.2 });
+  const from = sec.classList.contains('right') ? 'inset(0% 0% 0% 100% round 28px)'
+             : sec.classList.contains('center') ? 'inset(50% 0% 50% 0% round 28px)' : 'inset(0% 100% 0% 0% round 28px)';
+  if (sec._t) sec._t.kill();
+  sec._t = gsap.timeline()
+    .fromTo(panel, { opacity: 1, y: 40, clipPath: from }, { y: 0, clipPath: 'inset(0% 0% 0% 0% round 28px)', duration: 1.1, ease: 'expo.out', onComplete: () => gsap.set(panel, { clearProps: 'clipPath' }) }, 0)
+    .to(sec.querySelectorAll('.eyebrow,p,.cta'), { opacity: 1, y: 0, stagger: 0.12, duration: 0.8, ease: 'power3.out' }, 0.35);
+  sec.querySelectorAll('h1,h2').forEach(h => decode(h, 0.15));
+}
+function hide(i) {
+  const sec = secs[i]; if (sec._t) sec._t.kill();
+  sec._t = gsap.to(sec.querySelector('.glass'), { opacity: 0, y: -30, duration: 0.4, ease: 'power2.in' });
+  sec.querySelectorAll('h1,h2').forEach(resetText);
+  gsap.set(sec.querySelectorAll('.eyebrow,p,.cta'), { opacity: 0, y: 20 });
+}
+function startSections() {
+  secs.forEach((sec, i) => ScrollTrigger.create({ trigger: sec, start: 'top 55%', end: 'bottom 45%',
+    onEnter: () => show(i), onEnterBack: () => show(i), onLeave: () => hide(i), onLeaveBack: () => hide(i) }));
+  ScrollTrigger.refresh(); started = true; hint.classList.add('on');
+}
+addEventListener('scroll', () => { if (started) hint.classList.toggle('on', scrollY < 80); }, { passive: true });
+dots.forEach((d, i) => d.addEventListener('click', () => secs[i].scrollIntoView({ behavior: reduced ? 'auto' : 'smooth' })));
 
-        particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const particleMat = new THREE.PointsMaterial({
-            size: 0.15,
-            color: 0x00ff88,
-            transparent: true,
-            opacity: 0.6,
-            blending: THREE.AdditiveBlending
-        });
-        const particlesMesh = new THREE.Points(particlesGeo, particleMat);
-        coreGroup.add(particlesMesh);
+/* ---------- INTRO: counter -> iris wipe -> camera dive ---------- */
+function intro() {
+  window.__ready = true;
+  const ld = document.getElementById('loader');
+  if (reduced) { dive.v = 0; ld.remove(); document.documentElement.classList.remove('locked'); startSections(); return; }
+  const n = { v: 0 }, num = document.getElementById('ldNum'), bar = ld.querySelector('.ld-bar i');
+  gsap.timeline()
+    .to(n, { v: 100, duration: 1.8, ease: 'power2.inOut', onUpdate: () => { num.textContent = Math.round(n.v); bar.style.transform = 'scaleX(' + n.v / 100 + ')'; } })
+    .to(ld.querySelectorAll('.ld-count,.ld-bar,.ld-label'), { opacity: 0, y: -20, duration: 0.4, stagger: 0.05 }, '>0.15')
+    .fromTo(ld, { clipPath: 'circle(150% at 50% 50%)' }, { clipPath: 'circle(0% at 50% 50%)', duration: 1.5, ease: 'expo.inOut', onComplete: () => ld.remove() }, '>-0.1')
+    .to(dive, { v: 0, duration: 2.8, ease: 'expo.out' }, '<')
+    .add(() => { document.documentElement.classList.remove('locked'); startSections(); }, '<0.9');
+}
+Promise.all([document.fonts.ready, new Promise(r => document.readyState === 'complete' ? r() : addEventListener('load', r))]).then(() => {
+  document.querySelectorAll('h1,h2').forEach(splitChars); lockWidths();
+  gsap.set('.glass', { opacity: 0 }); gsap.set('.eyebrow,p,.cta', { opacity: 0, y: 20 });
+  intro();
+});
 
-        // --- 3. MOUSE PARALLAX (Tracks the cursor) ---
-        let mouseX = 0;
-        let mouseY = 0;
-        let targetX = 0;
-        let targetY = 0;
+/* ---------- 8. MAGNETIC BUTTON ---------- */
+const btn = document.getElementById('magnet');
+const qx = gsap.quickTo(btn, 'x', { duration: 0.5, ease: 'power3.out' });
+const qy = gsap.quickTo(btn, 'y', { duration: 0.5, ease: 'power3.out' });
+let pulled = false;
+addEventListener('pointermove', e => {
+  const r = btn.getBoundingClientRect();
+  const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  if (Math.hypot(dx, dy) < Math.max(r.width, 160)) {
+    pulled = true; qx(dx * 0.35); qy(dy * 0.35);
+    gsap.to(btn, { scale: 1.06, duration: 0.3, overwrite: 'auto' });
+  } else if (pulled) {
+    pulled = false;
+    gsap.to(btn, { x: 0, y: 0, scale: 1, duration: 1, ease: 'elastic.out(1,.35)', overwrite: true });
+  }
+});
 
-        const windowHalfX = window.innerWidth / 2;
-        const windowHalfY = window.innerHeight / 2;
-
-        document.addEventListener('mousemove', (event) => {
-            mouseX = (event.clientX - windowHalfX);
-            mouseY = (event.clientY - windowHalfY);
-        });
-
-        // --- 4. SCROLL ANIMATIONS (GSAP) ---
-        
-        // Rotate and move the core based on scroll
-        gsap.to(coreGroup.rotation, {
-            y: Math.PI * 2.5,
-            x: Math.PI / 3,
-            ease: "none",
-            scrollTrigger: {
-                trigger: ".scroll-wrapper",
-                start: "top top",
-                end: "bottom bottom",
-                scrub: 1.5
-            }
-        });
-
-        // Zoom the camera in dramatically
-        gsap.to(camera.position, {
-            z: 18,
-            ease: "power2.inOut",
-            scrollTrigger: {
-                trigger: ".scroll-wrapper",
-                start: "top top",
-                end: "bottom bottom",
-                scrub: 2
-            }
-        });
-
-        // Fade in the Glass Cards
-        const cards = document.querySelectorAll('.gs_reveal');
-        cards.forEach((card) => {
-            gsap.fromTo(card, 
-                { opacity: 0, y: 80, scale: 0.95 }, 
-                { opacity: 1, y: 0, scale: 1, duration: 1.2, ease: "expo.out",
-                  scrollTrigger: {
-                      trigger: card,
-                      start: "top 80%",
-                  }
-            });
-        });
-
-        // --- 5. RENDER LOOP ---
-        const clock = new THREE.Clock();
-
-        function animate() {
-            requestAnimationFrame(animate);
-            const time = clock.getElapsedTime();
-
-            // Constant slow idle rotation
-            outerMesh.rotation.y += 0.002;
-            outerMesh.rotation.x += 0.001;
-            particlesMesh.rotation.y -= 0.001;
-
-            // Gentle floating up and down
-            coreGroup.position.y = Math.sin(time * 0.5) * 1.5;
-
-            // Apply Mouse Parallax smoothly
-            targetX = mouseX * 0.001;
-            targetY = mouseY * 0.001;
-            
-            camera.position.x += (targetX - camera.position.x) * 0.05;
-            camera.position.y += (-targetY - camera.position.y) * 0.05;
-            camera.lookAt(scene.position);
-
-            renderer.render(scene, camera);
-        }
-        animate();
-
-        // Handle Resize
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-    </script>
+/* ---------- PORTAL: fly into the model, iris-close, then open the app ---------- */
+document.querySelectorAll('[data-portal]').forEach(a => a.addEventListener('click', e => {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button || reduced) return;
+  e.preventDefault();
+  const r = a.getBoundingClientRect(), x = e.clientX || r.left + r.width / 2, y = e.clientY || r.top + r.height / 2;
+  const R = Math.hypot(W(), H());
+  gsap.set('#iris', { display: 'block', clipPath: `circle(0px at ${x}px ${y}px)` });
+  kick(1.6);
+  gsap.to(dive, { v: -26, duration: 1.1, ease: 'power3.in' });
+  gsap.to('#iris', { clipPath: `circle(${R}px at ${x}px ${y}px)`, duration: 1.05, ease: 'power3.in', onComplete: () => { location.href = a.href; } });
+}));
+addEventListener('pageshow', e => { if (e.persisted) { gsap.set('#iris', { display: 'none' }); dive.v = 0; } });
+</script>
 </body>
 </html>
