@@ -522,7 +522,7 @@ def to_float(v):
 # ---------------------------------------------------------
 # Document Text Extraction (page-wise, OCR only where needed)
 # ---------------------------------------------------------
-MODEL = "openai/gpt-oss-120b"
+MODEL = "llama3-8b-8192"
 MAX_PAGES = 40
 CHUNK_CHARS = 9000
 OCR_DPI = 130
@@ -627,8 +627,8 @@ def chunk_lines(lines, size=CHUNK_CHARS):
 # ---------------------------------------------------------
 SYS = "You are a clinical lab analysis engine. Respond only with valid JSON."
 
-def call_groq(client, system, user, max_tokens, retries=5):
-    """One API call with manual JSON extraction to bypass strict validation errors."""
+def call_groq(client, system, user, max_tokens, retries=2):
+    """API call with manual JSON extraction and fast-fail rate limits."""
     last_error = None
     for attempt in range(retries):
         try:
@@ -643,11 +643,8 @@ def call_groq(client, system, user, max_tokens, retries=5):
             )
             
             content = r.choices[0].message.content or ""
-            
-            # 1. Clean up potential markdown blocks the model might hallucinate
             content = content.replace("```json", "").replace("```", "").strip()
             
-            # 2. Extract the bracketed JSON object manually
             start_idx = content.find('{')
             end_idx = content.rfind('}')
             
@@ -658,24 +655,19 @@ def call_groq(client, system, user, max_tokens, retries=5):
                 raise ValueError(f"No JSON brackets found. Model output: '{content}'")
 
         except json.JSONDecodeError as e:
-            last_error = f"Invalid JSON generated: {e}. Model output: '{content}'"
+            last_error = f"Invalid JSON generated: {e}"
         except ValueError as e:
             last_error = str(e)
         except Exception as e:
             last_error = str(e)
             msg = last_error.lower()
+            # If rate limit is hit, wait a MAX of 5 seconds instead of freezing
             if "429" in msg or "rate" in msg or "413" in msg:
-                m = re.search(r"try again in ([\d.]+)\s*(ms|s|m)\b", msg)
-                wait = 3 * (attempt + 1)
-                if m:
-                    v = float(m.group(1))
-                    wait = v / 1000 if m.group(2) == "ms" else v * 60 if m.group(2) == "m" else v
-                time.sleep(min(wait + 1, 40))
+                time.sleep(5)
                 continue
             time.sleep(2)
             
-    # If it fails all 5 retries, display the exact text the model returned
-    raise Exception(f"Failed after 5 attempts. Last error: {last_error}")
+    raise Exception(f"Failed. Last error: {last_error}")
 def _status(item):
     """Compute high/low/normal in Python from value + reference range (zero tokens)."""
     v, lo, hi = to_float(item.get("v")), to_float(item.get("lo")), to_float(item.get("hi"))
