@@ -627,18 +627,21 @@ def chunk_lines(lines, size=CHUNK_CHARS):
 # ---------------------------------------------------------
 SYS = "You are a clinical lab analysis engine. Respond only with valid JSON."
 
-def call_groq(client, system, user, max_tokens, retries=2):
-    """API call with manual JSON extraction and fast-fail rate limits."""
+def call_groq(client, system, user, max_tokens, retries=5):
+    """API call with robust JSON extraction and regex auto-repair."""
     last_error = None
     for attempt in range(retries):
         try:
+            # Force absolute strictness in the prompt
+            strict_system = system + " CRITICAL: Output ONLY valid JSON. Ensure all objects in arrays are strictly separated by commas."
+            
             r = client.chat.completions.create(
                 model=MODEL,
                 messages=[
-                    {"role": "system", "content": system},
+                    {"role": "system", "content": strict_system},
                     {"role": "user", "content": user}
                 ],
-                temperature=0.1,
+                temperature=0.01, # Near-zero creativity = far fewer syntax typos
                 max_tokens=max_tokens,
             )
             
@@ -650,9 +653,16 @@ def call_groq(client, system, user, max_tokens, retries=2):
             
             if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
                 clean_json = content[start_idx:end_idx+1]
+                
+                # --- AUTO-REPAIR COMMON LLM JSON TYPOS ---
+                # Fix missing commas between array objects (e.g., } { becomes }, {)
+                clean_json = re.sub(r'}\s*{', '}, {', clean_json)
+                # Fix missing commas between string properties
+                clean_json = re.sub(r'"\s*\n\s*"', '",\n"', clean_json)
+                
                 return json.loads(clean_json)
             else:
-                raise ValueError(f"No JSON brackets found. Model output: '{content}'")
+                raise ValueError("No JSON brackets found in the output.")
 
         except json.JSONDecodeError as e:
             last_error = f"Invalid JSON generated: {e}"
@@ -661,13 +671,13 @@ def call_groq(client, system, user, max_tokens, retries=2):
         except Exception as e:
             last_error = str(e)
             msg = last_error.lower()
-            # If rate limit is hit, wait a MAX of 5 seconds instead of freezing
+            # Fast-fail rate limiting
             if "429" in msg or "rate" in msg or "413" in msg:
-                time.sleep(5)
+                time.sleep(3)
                 continue
-            time.sleep(2)
+            time.sleep(1)
             
-    raise Exception(f"Failed. Last error: {last_error}")
+    raise Exception(f"Failed after {retries} attempts. Last error: {last_error}")
 def _status(item):
     """Compute high/low/normal in Python from value + reference range (zero tokens)."""
     v, lo, hi = to_float(item.get("v")), to_float(item.get("lo")), to_float(item.get("hi"))
