@@ -628,7 +628,7 @@ def chunk_lines(lines, size=CHUNK_CHARS):
 SYS = "You are a clinical lab analysis engine. Respond only with valid JSON."
 
 def call_groq(client, system, user, max_tokens, retries=5):
-    """One Groq call with JSON mode, low reasoning effort, and rate-limit-aware retries."""
+    """One API call with manual JSON extraction to bypass strict 400 validation errors."""
     last = None
     for attempt in range(retries):
         try:
@@ -636,11 +636,23 @@ def call_groq(client, system, user, max_tokens, retries=5):
                 model=MODEL,
                 messages=[{"role": "system", "content": system},
                           {"role": "user", "content": user}],
-                response_format={"type": "json_object"},
+                # We removed response_format={"type": "json_object"} to stop the crashing
                 temperature=0.1,
                 max_tokens=max_tokens,
             )
-            return json.loads(r.choices[0].message.content)
+            
+            content = r.choices[0].message.content
+            
+            # Manually extract the JSON bracket block to ignore extra conversational text
+            start_idx = content.find('{')
+            end_idx = content.rfind('}') + 1
+            
+            if start_idx != -1 and end_idx != 0:
+                clean_json = content[start_idx:end_idx]
+                return json.loads(clean_json)
+            else:
+                return json.loads(content)
+
         except json.JSONDecodeError as e:
             last = e
         except Exception as e:
