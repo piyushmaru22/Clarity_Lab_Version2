@@ -522,12 +522,12 @@ def to_float(v):
 # ---------------------------------------------------------
 # Document Text Extraction (page-wise, OCR only where needed)
 # ---------------------------------------------------------
-MODEL = "llama3-8b-8192"
-MAX_PAGES = 40
-CHUNK_CHARS = 9000
-OCR_DPI = 130
-MAX_SIDE = 1600
-MAX_FILE_MB = 25
+MODEL = "openai/gpt-oss-120b"
+MAX_PAGES = 3             # Drastically reduced to prevent rate limit freezes
+CHUNK_CHARS = 6000        # Smaller chunks to fit free-tier limits
+OCR_DPI = 100
+MAX_SIDE = 1200
+MAX_FILE_MB = 10
 
 def _ocr_page(file_bytes, page_no):
     """OCR a single PDF page (1-indexed). Rendering one page at a time keeps memory low."""
