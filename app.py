@@ -627,57 +627,66 @@ def chunk_lines(lines, size=CHUNK_CHARS):
 # ---------------------------------------------------------
 SYS = "You are a clinical lab analysis engine. Respond only with valid JSON."
 
-def call_groq(client, system, user, max_tokens, retries=5):
-    """API call with robust JSON extraction and regex auto-repair."""
+def call_groq(client, system, user, max_tokens, retries=4):
+    """API call with a self-healing JSON parser that automatically patches missing commas."""
     last_error = None
     for attempt in range(retries):
         try:
-            # Force absolute strictness in the prompt
-            strict_system = system + " CRITICAL: Output ONLY valid JSON. Ensure all objects in arrays are strictly separated by commas."
-            
             r = client.chat.completions.create(
                 model=MODEL,
                 messages=[
-                    {"role": "system", "content": strict_system},
+                    {"role": "system", "content": system + " CRITICAL: Output ONLY valid JSON."},
                     {"role": "user", "content": user}
                 ],
-                temperature=0.01, # Near-zero creativity = far fewer syntax typos
+                temperature=0.01,
                 max_tokens=max_tokens,
             )
             
             content = r.choices[0].message.content or ""
-            content = content.replace("```json", "").replace("```", "").strip()
             
+            # Isolate the JSON block
             start_idx = content.find('{')
             end_idx = content.rfind('}')
-            
             if start_idx != -1 and end_idx != -1 and end_idx >= start_idx:
-                clean_json = content[start_idx:end_idx+1]
-                
-                # --- AUTO-REPAIR COMMON LLM JSON TYPOS ---
-                # Fix missing commas between array objects (e.g., } { becomes }, {)
-                clean_json = re.sub(r'}\s*{', '}, {', clean_json)
-                # Fix missing commas between string properties
-                clean_json = re.sub(r'"\s*\n\s*"', '",\n"', clean_json)
-                
-                return json.loads(clean_json)
+                content = content[start_idx:end_idx+1]
             else:
-                raise ValueError("No JSON brackets found in the output.")
+                raise ValueError("No JSON brackets found.")
 
-        except json.JSONDecodeError as e:
-            last_error = f"Invalid JSON generated: {e}"
-        except ValueError as e:
-            last_error = str(e)
+            # --- THE SELF-HEALING JSON LOOP ---
+            last_pos = -1
+            for fix_attempt in range(20):
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError as e:
+                    err_msg = str(e)
+                    
+                    # If a comma is missing, inject it at the exact character Python requested it
+                    if "Expecting ',' delimiter" in err_msg and e.pos != last_pos:
+                        content = content[:e.pos] + ',' + content[e.pos:]
+                        last_pos = e.pos
+                        
+                    # If there is a trailing comma error (e.g., "value", }), remove it via regex
+                    elif "Expecting property name" in err_msg:
+                        content = re.sub(r',\s*}', '}', content)
+                        content = re.sub(r',\s*\]', ']', content)
+                        last_pos = e.pos
+                        
+                    # Fallback brute-force fix for missing commas between lines
+                    else:
+                        content = re.sub(r'(["\d\]}a-zA-Z])(\s*\n\s*)(")', r'\1,\2\3', content)
+                        if fix_attempt > 5:
+                            raise
+            
+            return json.loads(content)
+
         except Exception as e:
             last_error = str(e)
-            msg = last_error.lower()
-            # Fast-fail rate limiting
-            if "429" in msg or "rate" in msg or "413" in msg:
+            if "429" in last_error.lower() or "rate" in last_error.lower():
                 time.sleep(3)
                 continue
             time.sleep(1)
             
-    raise Exception(f"Failed after {retries} attempts. Last error: {last_error}")
+    raise Exception(f"Failed to parse report. Last error: {last_error}")
 def _status(item):
     """Compute high/low/normal in Python from value + reference range (zero tokens)."""
     v, lo, hi = to_float(item.get("v")), to_float(item.get("lo")), to_float(item.get("hi"))
