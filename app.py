@@ -1158,6 +1158,8 @@ def call_groq(client, system, user, max_tokens, retries=4):
             )
             
             content = r.choices[0].message.content or ""
+            if not content.strip():
+                print(f"[call_groq] empty reply, finish_reason={r.choices[0].finish_reason}")
             
             # Isolate the JSON block
             start_idx = content.find('{')
@@ -1182,12 +1184,14 @@ def call_groq(client, system, user, max_tokens, retries=4):
                             pass # Move to the next retry
                             
         except Exception as e:
+            print(f"[call_groq] attempt {attempt + 1}/{retries} failed: {e}")
             msg = str(e).lower()
             if "429" in msg or "rate" in msg or "413" in msg:
                 time.sleep(3)
                 continue
             time.sleep(1)
             
+    print("[call_groq] giving up, returning empty result")
     # THE HARD FAIL-SAFE: If it fails all retries, return an empty structure so the UI NEVER crashes.
     return {"r": [], "items": [], "summary": "Analysis completed, but some data was unreadable."}
 def _status(item):
@@ -1212,6 +1216,7 @@ def analyze_report_with_groq(file_bytes, filename, mime_type, target_lang, targe
 
         pages = extract_pages(file_bytes, filename, mime_type)
         lines = condense(pages)
+        print(f"[analyze] pages={len(pages)} text_lines={len(lines)}")
         if not lines:
             return None, "Could not extract text from document. Please ensure it is a clear scan."
 
@@ -1234,6 +1239,7 @@ TEXT:
                     seen.add(key)
                     found.append(it)
 
+        print(f"[analyze] biomarkers found={len(found)}")
         if not found:
             return None, None   # UI shows the "no results" message
 
